@@ -1,178 +1,79 @@
-// const express = require("express");
-// const cors = require("cors");
-
-// const app = express();
-// app.use(express.json()); // utility to process JSON in requests
-// app.use(cors()); // utility to allow clients to make requests from other hosts or ips
-
-// const db = {
-//   players: [],
-//   moves: {},
-//   result: null,
-// };
-
-// let timer;
-
-
-
-// app.get("/users", (request, response) => {
-//   response.send(db);
-// });
-
-// app.post("/user", (request, response) => {
-//   const { body } = request;
-//   db.players.push(body);
-//   response.status(201).send(body); // We return the same object received and also I send a code 201 which means an object was created
-// });
-
-// // Endpoint para registrar el movimiento de un jugador
-// app.post("/move", (request, response) => {
-//   const { name, move } = request.body;
-//   db.moves[name] = move;
-
-  
-
-//   // Si ambos jugadores ya han enviado sus movimientos, determinar el resultado
-//   if (Object.keys(db.moves).length === 2) {
-//     const players = Object.keys(db.moves);
-//     const moves = Object.values(db.moves);
-//     let result = '';
-
-//     if (moves[0] === moves[1]) {
-//       result = "It's a tie!";
-//     } else if (
-//       (moves[0] === "rock" && moves[1] === "scissors") ||
-//       (moves[0] === "scissors" && moves[1] === "paper") ||
-//       (moves[0] === "paper" && moves[1] === "rock")
-//     ) {
-//       result = `${players[0]} wins!`;
-//     } else {
-//       result = `${players[1]} wins!`;
-//     }
-
-//     db.result = result;
-//   }
-
-//   response.status(200).send({ message: "Move registered" });
-// });
-
-// // Endpoint para obtener el resultado del juego
-// app.get("/result", (request, response) => {
-//   response.send({ result: db.result || "Waiting for both players..." });
-// });
-
-// // Endpoint para obtener los jugadores
-// app.get("/users", (request, response) => {
-//   response.send(db);
-// });
-
-// // Nueva ruta para vaciar la lista de jugadores
-// app.delete("/reset-users", (request, response) => {
-//   db.players = []; // Limpiar la lista de jugadores
-//   response.status(200).send({ message: "Players reset successfully" });
-// });
-
-// app.listen(5050, () => {
-//   console.log(`Server is running on http://localhost:${5050}`);
-// });
-
-
-
-
-
-
-const express = require("express");
-const cors = require("cors");
-
-const app = express();
-app.use(express.json());
-app.use(cors());
-
-const db = {
-  players: [],
-  moves: {},
-  result: null,
-};
-
-let timer;
-
-// Endpoint para registrar al jugador y su movimiento
-app.post("/user", (request, response) => {
-  const { name, profilePicture, move } = request.body;
-
-  // Añadir jugador a la lista
-  db.players.push({ name, profilePicture, move });
-
-  // Registrar el movimiento del jugador
-  db.moves[name] = move;
-
-  // Iniciar el temporizador si es el primer jugador
-  if (Object.keys(db.moves).length === 1) {
-    startTimer();
-  }
-
-  // Si ambos jugadores han enviado sus movimientos, determina el ganador
-  if (Object.keys(db.moves).length === 2) {
-    determineWinner();
-  }
-
-  response.status(201).send({ message: "Player registered" });
+document.getElementById("fetch-button").addEventListener("click", fetchData);
+document.addEventListener("DOMContentLoaded", async () => {
+  await resetUsers();
+  fetchData();
+  startResultPolling(); // Iniciar la actualización automática de resultados
 });
 
-// Función para iniciar el temporizador de 10 segundos
-function startTimer() {
-  clearTimeout(timer);
-  timer = setTimeout(() => {
-    if (Object.keys(db.moves).length === 1) {
-      const [firstPlayer] = db.players;
-      db.result = `${firstPlayer.name} wins by default!`;
-    } else {
-      determineWinner();
+async function fetchData() {
+  renderLoadingState();
+  try {
+    const response = await fetch("http://localhost:5050/users");
+    if (!response.ok) {
+      throw new Error("Network response was not ok");
     }
-  }, 10000);
-}
-
-// Función para determinar el ganador basado en los movimientos
-function determineWinner() {
-  const players = Object.keys(db.moves);
-  const moves = Object.values(db.moves);
-  let result = '';
-
-  if (moves[0] === moves[1]) {
-    result = "It's a tie!";
-  } else if (
-    (moves[0] === "rock" && moves[1] === "scissors") ||
-    (moves[0] === "scissors" && moves[1] === "paper") ||
-    (moves[0] === "paper" && moves[1] === "rock")
-  ) {
-    result = `${players[0]} wins!`;
-  } else {
-    result = `${players[1]} wins!`;
+    const data = await response.json();
+    renderData(data);
+  } catch (error) {
+    console.error(error);
+    renderErrorState();
   }
-
-  db.result = result;
-  clearTimeout(timer); // Limpiar el temporizador después de determinar el ganador
 }
 
-// Endpoint para obtener el resultado del juego
-app.get("/result", (request, response) => {
-  response.send({ result: db.result || "Waiting for both players..." });
-});
+async function resetUsers() {
+  try {
+    const response = await fetch("http://localhost:5050/reset-users", {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      throw new Error("Failed to reset players");
+    }
+    console.log("Players reset successfully");
+  } catch (error) {
+    console.error("Error resetting players:", error);
+  }
+}
 
-// Endpoint para obtener los jugadores
-app.get("/users", (request, response) => {
-  response.send(db);
-});
+function renderErrorState() {
+  const container = document.getElementById("data-container");
+  container.innerHTML = "<p>Failed to load data</p>";
+}
 
-// Nueva ruta para vaciar la lista de jugadores
-app.delete("/reset-users", (request, response) => {
-  db.players = [];
-  db.moves = {};
-  db.result = null;
-  clearTimeout(timer); // Limpiar el temporizador
-  response.status(200).send({ message: "Players reset successfully" });
-});
+function renderLoadingState() {
+  const container = document.getElementById("data-container");
+  container.innerHTML = "<p>Loading...</p>";
+}
 
-app.listen(5050, () => {
-  console.log(`Server is running on http://localhost:5050`);
-});
+function renderData(data) {
+  const container = document.getElementById("data-container");
+  container.innerHTML = "";
+
+  if (data.players.length > 0) {
+    data.players.forEach((item) => {
+      const div = document.createElement("div");
+      div.className = "item";
+      div.innerHTML = `<img src="${item.profilePicture}" /><p>${item.name} chose ${item.move}</p>`;
+      container.appendChild(div);
+    });
+  }
+}
+
+function startResultPolling() {
+  setInterval(async () => {
+    try {
+      const response = await fetch("http://localhost:5050/result");
+      if (!response.ok) {
+        throw new Error("Failed to fetch result");
+      }
+      const data = await response.json();
+      displayResult(data.result);
+    } catch (error) {
+      console.error("Error fetching result:", error);
+    }
+  }, 10000); // Intervalo de 10 segundos
+}
+
+function displayResult(result) {
+  const container = document.getElementById("result-container");
+  container.innerHTML = `<p>${result}</p>`;
+}
